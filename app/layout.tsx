@@ -18,7 +18,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://safa.unesa.ac.id";
+const appBaseUrl =
+  process.env.NEXT_PUBLIC_APP_URL || "https://safa-unesa.vercel.app";
 
 export const viewport: Viewport = {
   themeColor: [
@@ -62,6 +63,24 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    other: [
+      {
+        rel: "mask-icon",
+        url: "/favicon.svg",
+        color: "#1e3a8a",
+      },
+    ],
+  },
+  manifest: "/site.webmanifest",
   alternates: {
     canonical: "/",
   },
@@ -73,6 +92,14 @@ export const metadata: Metadata = {
     siteName: "SAFA UNESA",
     locale: "id_ID",
     type: "website",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "SAFA UNESA - Portal Pengaduan Fasilitas Kampus Terpadu",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
@@ -80,6 +107,7 @@ export const metadata: Metadata = {
     description:
       "Lapor kendala fasilitas sarpras kampus UNESA secara cepat tanpa perlu login. Pantau progres perbaikan realtime.",
     creator: "@official_unesa",
+    images: ["/opengraph-image"],
   },
   robots: {
     index: true,
