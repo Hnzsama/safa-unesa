@@ -202,10 +202,11 @@ export default async function ResolvedReportsPage() {
                       className={buttonVariants({
                         variant: "outline",
                         size: "sm",
-                        className: "w-full justify-between text-xs h-8 group-hover:border-primary/50 group-hover:bg-primary group-hover:text-primary-foreground transition-all",
+                        className:
+                          "w-full justify-between text-xs h-8 border-border/80 bg-background/50 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors text-foreground",
                       })}
                     >
-                      <span>Lihat Riwayat &amp; Bukti</span>
+                      <span className="font-medium">Lihat Riwayat &amp; Bukti</span>
                       <ArrowRight className="size-3.5 ml-1 transition-transform group-hover:translate-x-1" />
                     </Link>
                   </div>
