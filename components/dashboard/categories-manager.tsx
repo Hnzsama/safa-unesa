@@ -1,6 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import * as React from "react";
+import { useState, useMemo } from "react";
+import {
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  createColumnHelper,
+  createFilteredRowModel,
+  createPaginatedRowModel,
+  createSortedRowModel,
+  FlexRender,
+  rowPaginationFeature,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
+  type ColumnFiltersState,
+  type SortingState,
+} from "@tanstack/react-table";
 import {
   Layers,
   Tag,
@@ -12,6 +28,11 @@ import {
   Search,
   AlertCircle,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +40,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -49,13 +77,28 @@ export interface CategoryRecord {
   created_at: string;
 }
 
+const features = tableFeatures({
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  rowPaginationFeature,
+  rowSortingFeature,
+  filteredRowModel: createFilteredRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
+  sortedRowModel: createSortedRowModel(),
+});
+
+const columnHelper = createColumnHelper<typeof features, CategoryRecord>();
+
 interface CategoriesManagerProps {
   initialCategories: CategoryRecord[];
 }
 
 export function CategoriesManager({ initialCategories }: CategoriesManagerProps) {
-  const [categories, setCategories] = useState<CategoryRecord[]>(initialCategories);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [data, setData] = useState<CategoryRecord[]>(initialCategories);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+  const [globalFilter, setGlobalFilter] = useState("");
 
   // Modal State
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -65,22 +108,14 @@ export function CategoriesManager({ initialCategories }: CategoriesManagerProps)
   // Form Fields
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [isActive, setIsActive] = useState(true);
+  const [isActive, setIsActive] = useState("active");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Filtered List
-  const filteredCategories = categories.filter((cat) => {
-    return (
-      cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (cat.description && cat.description.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-  });
 
   const openCreateModal = () => {
     setEditingCategory(null);
     setName("");
     setDescription("");
-    setIsActive(true);
+    setIsActive("active");
     setIsFormOpen(true);
   };
 
@@ -88,9 +123,112 @@ export function CategoriesManager({ initialCategories }: CategoriesManagerProps)
     setEditingCategory(cat);
     setName(cat.name);
     setDescription(cat.description || "");
-    setIsActive(cat.is_active);
+    setIsActive(cat.is_active ? "active" : "inactive");
     setIsFormOpen(true);
   };
+
+  const columns = useMemo(
+    () =>
+      columnHelper.columns([
+        columnHelper.accessor("name", {
+          header: ({ column }) => (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              className="-ml-3 h-8 text-xs font-bold text-muted-foreground hover:text-foreground"
+            >
+              NAMA KATEGORI
+              <ArrowUpDown className="ml-1.5 size-3" />
+            </Button>
+          ),
+          cell: ({ row }) => (
+            <div className="flex items-center gap-2">
+              <Tag className="size-3.5 text-primary shrink-0" />
+              <span className="text-xs font-bold text-foreground">{row.original.name}</span>
+            </div>
+          ),
+        }),
+        columnHelper.accessor("description", {
+          header: "DESKRIPSI & CAKUPAN KERUSAKAN",
+          cell: ({ row }) => (
+            <span className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+              {row.original.description || "Tidak ada deskripsi rinci."}
+            </span>
+          ),
+        }),
+        columnHelper.accessor("is_active", {
+          header: () => <div className="text-center">STATUS</div>,
+          cell: ({ row }) => (
+            <div className="flex justify-center">
+              {row.original.is_active ? (
+                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] gap-1">
+                  <CheckCircle2 className="size-3" />
+                  <span>Aktif</span>
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-muted-foreground text-[10px] gap-1">
+                  <XCircle className="size-3" />
+                  <span>Nonaktif</span>
+                </Badge>
+              )}
+            </div>
+          ),
+        }),
+        columnHelper.display({
+          id: "actions",
+          header: () => <div className="text-right">AKSI</div>,
+          cell: ({ row }) => (
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => openEditModal(row.original)}
+                className="size-7 rounded-lg text-muted-foreground hover:text-foreground"
+              >
+                <Pencil className="size-3.5" />
+                <span className="sr-only">Edit</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setDeleteConfirmCategory(row.original)}
+                className="size-7 rounded-lg text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="size-3.5" />
+                <span className="sr-only">Hapus</span>
+              </Button>
+            </div>
+          ),
+        }),
+      ]),
+     
+    []
+  );
+
+  const filteredData = useMemo(() => {
+    if (!globalFilter) return data;
+    return data.filter(
+      (cat) =>
+        cat.name.toLowerCase().includes(globalFilter.toLowerCase()) ||
+        (cat.description && cat.description.toLowerCase().includes(globalFilter.toLowerCase()))
+    );
+  }, [data, globalFilter]);
+
+  const table = useTable({
+    features,
+    data: filteredData,
+    columns,
+    state: {
+      sorting,
+      columnFilters,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onPaginationChange: setPagination,
+    getRowId: (row) => row.id,
+  });
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,16 +241,15 @@ export function CategoriesManager({ initialCategories }: CategoriesManagerProps)
     setIsSubmitting(true);
     try {
       if (editingCategory) {
-        // Edit Mode
         const res = await updateCategoryAction(editingCategory.id, {
           name: name.trim(),
           description: description.trim() || undefined,
-          is_active: isActive,
+          is_active: isActive === "active",
         });
 
         if (res.success && res.category) {
           toast.success("Kategori fasilitas berhasil diperbarui.");
-          setCategories((prev) =>
+          setData((prev) =>
             prev.map((c) => (c.id === editingCategory.id ? (res.category as CategoryRecord) : c))
           );
           setIsFormOpen(false);
@@ -120,16 +257,15 @@ export function CategoriesManager({ initialCategories }: CategoriesManagerProps)
           toast.error(res.error || "Gagal memperbarui kategori.");
         }
       } else {
-        // Create Mode
         const res = await createCategoryAction({
           name: name.trim(),
           description: description.trim() || undefined,
-          is_active: isActive,
+          is_active: isActive === "active",
         });
 
         if (res.success && res.category) {
           toast.success("Kategori fasilitas baru berhasil ditambahkan.");
-          setCategories((prev) => [res.category as CategoryRecord, ...prev]);
+          setData((prev) => [res.category as CategoryRecord, ...prev]);
           setIsFormOpen(false);
         } else {
           toast.error(res.error || "Gagal menambahkan kategori.");
@@ -150,14 +286,14 @@ export function CategoriesManager({ initialCategories }: CategoriesManagerProps)
       if (res.success) {
         if (res.message) {
           toast.info(res.message);
-          setCategories((prev) =>
+          setData((prev) =>
             prev.map((c) =>
               c.id === deleteConfirmCategory.id ? { ...c, is_active: false } : c
             )
           );
         } else {
           toast.success("Kategori berhasil dihapus.");
-          setCategories((prev) => prev.filter((c) => c.id !== deleteConfirmCategory.id));
+          setData((prev) => prev.filter((c) => c.id !== deleteConfirmCategory.id));
         }
         setDeleteConfirmCategory(null);
       } else {
@@ -172,7 +308,7 @@ export function CategoriesManager({ initialCategories }: CategoriesManagerProps)
 
   return (
     <div className="space-y-4">
-      {/* Action & Filter Toolbar */}
+      {/* TanStack Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-2xl border border-border">
         {/* Search Box */}
         <div className="relative flex-1 max-w-sm">
@@ -180,8 +316,8 @@ export function CategoriesManager({ initialCategories }: CategoriesManagerProps)
           <Input
             type="text"
             placeholder="Cari nama kategori atau cakupan..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            value={globalFilter}
+            onChange={(e) => setGlobalFilter(e.target.value)}
             className="pl-9 h-9 text-xs rounded-xl"
           />
         </div>
@@ -197,80 +333,90 @@ export function CategoriesManager({ initialCategories }: CategoriesManagerProps)
         </Button>
       </div>
 
-      {/* Categories Table */}
+      {/* TanStack Table Container */}
       <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/40">
-            <TableRow>
-              <TableHead className="w-[260px] text-xs font-bold text-muted-foreground">NAMA KATEGORI</TableHead>
-              <TableHead className="text-xs font-bold text-muted-foreground">DESKRIPSI &amp; CAKUPAN KERUSAKAN</TableHead>
-              <TableHead className="w-[100px] text-center text-xs font-bold text-muted-foreground">STATUS</TableHead>
-              <TableHead className="w-[110px] text-right text-xs font-bold text-muted-foreground">AKSI</TableHead>
-            </TableRow>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} className="text-xs font-bold text-muted-foreground">
+                    {header.isPlaceholder ? null : <FlexRender header={header} />}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
           </TableHeader>
           <TableBody>
-            {filteredCategories.length === 0 ? (
+            {table.getRowModel().rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="h-32 text-center text-xs text-muted-foreground">
+                <TableCell colSpan={columns.length} className="h-32 text-center text-xs text-muted-foreground">
                   Tidak ada data kategori yang sesuai dengan pencarian.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredCategories.map((cat) => (
-                <TableRow key={cat.id} className="hover:bg-muted/30">
-                  <TableCell className="text-xs font-bold text-foreground">
-                    <div className="flex items-center gap-2">
-                      <Tag className="size-3.5 text-primary shrink-0" />
-                      <span>{cat.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground leading-relaxed">
-                    {cat.description || "Tidak ada deskripsi rinci."}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {cat.is_active ? (
-                      <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] gap-1">
-                        <CheckCircle2 className="size-3" />
-                        <span>Aktif</span>
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="text-muted-foreground text-[10px] gap-1">
-                        <XCircle className="size-3" />
-                        <span>Nonaktif</span>
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEditModal(cat)}
-                        className="size-7 rounded-lg text-muted-foreground hover:text-foreground"
-                      >
-                        <Pencil className="size-3.5" />
-                        <span className="sr-only">Edit</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setDeleteConfirmCategory(cat)}
-                        className="size-7 rounded-lg text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="size-3.5" />
-                        <span className="sr-only">Hapus</span>
-                      </Button>
-                    </div>
-                  </TableCell>
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id} className="hover:bg-muted/30">
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      <FlexRender cell={cell} />
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
 
-        <div className="p-3 border-t border-border bg-muted/20 text-xs text-muted-foreground flex items-center justify-between">
-          <span>Menampilkan <strong>{filteredCategories.length}</strong> dari <strong>{categories.length}</strong> kategori sarpras</span>
-          <span>SAFA UNESA Standards</span>
+        {/* TanStack Pagination Controls */}
+        <div className="p-3 border-t border-border bg-muted/20 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span>
+            Menampilkan <strong>{table.getRowModel().rows.length}</strong> dari <strong>{filteredData.length}</strong> kategori terfilter (Total: {data.length})
+          </span>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px]">
+              Hal {table.state.pagination.pageIndex + 1} dari {Math.max(1, table.getPageCount())}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-lg"
+                onClick={() => table.setPageIndex(0)}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <ChevronsLeft className="size-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-lg"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <ChevronLeft className="size-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-lg"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                <ChevronRight className="size-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-lg"
+                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                disabled={!table.getCanNextPage()}
+              >
+                <ChevronsRight className="size-3.5" />
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -313,14 +459,15 @@ export function CategoriesManager({ initialCategories }: CategoriesManagerProps)
 
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Status Kategori</Label>
-              <select
-                value={isActive ? "active" : "inactive"}
-                onChange={(e) => setIsActive(e.target.value === "active")}
-                className="w-full h-9 px-3 text-xs rounded-xl border border-input bg-background text-foreground font-medium outline-hidden"
-              >
-                <option value="active">Aktif (Tampil di Form Pelaporan)</option>
-                <option value="inactive">Nonaktif</option>
-              </select>
+              <Select value={isActive} onValueChange={(val) => val && setIsActive(val)}>
+                <SelectTrigger className="w-full h-9 text-xs rounded-xl">
+                  <SelectValue placeholder="Pilih Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Aktif (Tampil di Form Pelaporan)</SelectItem>
+                  <SelectItem value="inactive">Nonaktif</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <DialogFooter className="pt-3">
@@ -408,4 +555,3 @@ export function CategoriesManager({ initialCategories }: CategoriesManagerProps)
     </div>
   );
 }
-

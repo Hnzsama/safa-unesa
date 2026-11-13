@@ -1,6 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import * as React from "react";
+import { useState, useMemo } from "react";
+import {
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  createColumnHelper,
+  createFilteredRowModel,
+  createPaginatedRowModel,
+  createSortedRowModel,
+  FlexRender,
+  rowPaginationFeature,
+  rowSortingFeature,
+  tableFeatures,
+  useTable,
+  type ColumnFiltersState,
+  type SortingState,
+} from "@tanstack/react-table";
 import {
   Building2,
   MapPin,
@@ -12,12 +28,24 @@ import {
   Search,
   AlertCircle,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  ArrowUpDown,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -50,13 +78,28 @@ export interface LocationRecord {
   created_at: string;
 }
 
+const features = tableFeatures({
+  columnFilteringFeature,
+  columnVisibilityFeature,
+  rowPaginationFeature,
+  rowSortingFeature,
+  filteredRowModel: createFilteredRowModel(),
+  paginatedRowModel: createPaginatedRowModel(),
+  sortedRowModel: createSortedRowModel(),
+});
+
+const columnHelper = createColumnHelper<typeof features, LocationRecord>();
+
 interface LocationsManagerProps {
   initialLocations: LocationRecord[];
 }
 
 export function LocationsManager({ initialLocations }: LocationsManagerProps) {
-  const [locations, setLocations] = useState<LocationRecord[]>(initialLocations);
-  const [searchQuery, setSearchQuery] = useState("");
+  const [data, setData] = useState<LocationRecord[]>(initialLocations);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 });
+  const [globalFilter, setGlobalFilter] = useState("");
   const [selectedCampus, setSelectedCampus] = useState("all");
 
   // Modal State
@@ -70,26 +113,12 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
   const [buildingName, setBuildingName] = useState("");
   const [floor, setFloor] = useState("");
   const [roomOrArea, setRoomOrArea] = useState("");
-  const [isActive, setIsActive] = useState(true);
+  const [isActive, setIsActive] = useState("active");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Filtered List
-  const filteredLocations = locations.filter((loc) => {
-    const matchesSearch =
-      loc.building_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      loc.room_or_area.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (loc.floor && loc.floor.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      loc.campus_name.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesCampus =
-      selectedCampus === "all" || loc.campus_name === selectedCampus;
-
-    return matchesSearch && matchesCampus;
-  });
-
-  const uniqueCampuses = Array.from(
-    new Set(locations.map((loc) => loc.campus_name))
-  );
+  const uniqueCampuses = useMemo(() => {
+    return Array.from(new Set(data.map((loc) => loc.campus_name)));
+  }, [data]);
 
   const openCreateModal = () => {
     setEditingLocation(null);
@@ -98,7 +127,7 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
     setBuildingName("");
     setFloor("");
     setRoomOrArea("");
-    setIsActive(true);
+    setIsActive("active");
     setIsFormOpen(true);
   };
 
@@ -114,9 +143,142 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
     setBuildingName(loc.building_name);
     setFloor(loc.floor || "");
     setRoomOrArea(loc.room_or_area);
-    setIsActive(loc.is_active);
+    setIsActive(loc.is_active ? "active" : "inactive");
     setIsFormOpen(true);
   };
+
+  const columns = useMemo(
+    () =>
+      columnHelper.columns([
+        columnHelper.accessor("campus_name", {
+          header: ({ column }) => (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              className="-ml-3 h-8 text-xs font-bold text-muted-foreground hover:text-foreground"
+            >
+              KAMPUS
+              <ArrowUpDown className="ml-1.5 size-3" />
+            </Button>
+          ),
+          cell: ({ row }) => (
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted text-foreground text-xs font-semibold">
+              <MapPin className="size-3 text-primary" />
+              {row.original.campus_name}
+            </span>
+          ),
+        }),
+        columnHelper.accessor("building_name", {
+          header: ({ column }) => (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              className="-ml-3 h-8 text-xs font-bold text-muted-foreground hover:text-foreground"
+            >
+              GEDUNG / FAKULTAS
+              <ArrowUpDown className="ml-1.5 size-3" />
+            </Button>
+          ),
+          cell: ({ row }) => (
+            <span className="text-xs font-bold text-foreground">
+              {row.original.building_name}
+            </span>
+          ),
+        }),
+        columnHelper.accessor("floor", {
+          header: "LANTAI",
+          cell: ({ row }) => (
+            <span className="text-xs text-muted-foreground">
+              {row.original.floor || "-"}
+            </span>
+          ),
+        }),
+        columnHelper.accessor("room_or_area", {
+          header: "RUANG / AREA SPESIFIK",
+          cell: ({ row }) => (
+            <span className="text-xs text-foreground font-medium">
+              {row.original.room_or_area}
+            </span>
+          ),
+        }),
+        columnHelper.accessor("is_active", {
+          header: () => <div className="text-center">STATUS</div>,
+          cell: ({ row }) => (
+            <div className="flex justify-center">
+              {row.original.is_active ? (
+                <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] gap-1">
+                  <CheckCircle2 className="size-3" />
+                  <span>Aktif</span>
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-muted-foreground text-[10px] gap-1">
+                  <XCircle className="size-3" />
+                  <span>Nonaktif</span>
+                </Badge>
+              )}
+            </div>
+          ),
+        }),
+        columnHelper.display({
+          id: "actions",
+          header: () => <div className="text-right">AKSI</div>,
+          cell: ({ row }) => (
+            <div className="flex items-center justify-end gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => openEditModal(row.original)}
+                className="size-7 rounded-lg text-muted-foreground hover:text-foreground"
+              >
+                <Pencil className="size-3.5" />
+                <span className="sr-only">Edit</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setDeleteConfirmLocation(row.original)}
+                className="size-7 rounded-lg text-muted-foreground hover:text-destructive"
+              >
+                <Trash2 className="size-3.5" />
+                <span className="sr-only">Hapus</span>
+              </Button>
+            </div>
+          ),
+        }),
+      ]),
+     
+    []
+  );
+
+  const filteredData = useMemo(() => {
+    return data.filter((item) => {
+      const matchCampus = selectedCampus === "all" || item.campus_name === selectedCampus;
+      const matchSearch =
+        !globalFilter ||
+        item.building_name.toLowerCase().includes(globalFilter.toLowerCase()) ||
+        item.room_or_area.toLowerCase().includes(globalFilter.toLowerCase()) ||
+        (item.floor && item.floor.toLowerCase().includes(globalFilter.toLowerCase())) ||
+        item.campus_name.toLowerCase().includes(globalFilter.toLowerCase());
+      return matchCampus && matchSearch;
+    });
+  }, [data, selectedCampus, globalFilter]);
+
+  const table = useTable({
+    features,
+    data: filteredData,
+    columns,
+    state: {
+      sorting,
+      columnFilters,
+      pagination,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onPaginationChange: setPagination,
+    getRowId: (row) => row.id,
+  });
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,18 +300,17 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
     setIsSubmitting(true);
     try {
       if (editingLocation) {
-        // Edit Mode
         const res = await updateLocationAction(editingLocation.id, {
           campus_name: finalCampus,
           building_name: buildingName.trim(),
           floor: floor.trim() || undefined,
           room_or_area: roomOrArea.trim(),
-          is_active: isActive,
+          is_active: isActive === "active",
         });
 
         if (res.success && res.location) {
           toast.success("Data lokasi berhasil diperbarui.");
-          setLocations((prev) =>
+          setData((prev) =>
             prev.map((l) => (l.id === editingLocation.id ? (res.location as LocationRecord) : l))
           );
           setIsFormOpen(false);
@@ -157,18 +318,17 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
           toast.error(res.error || "Gagal memperbarui lokasi.");
         }
       } else {
-        // Create Mode
         const res = await createLocationAction({
           campus_name: finalCampus,
           building_name: buildingName.trim(),
           floor: floor.trim() || undefined,
           room_or_area: roomOrArea.trim(),
-          is_active: isActive,
+          is_active: isActive === "active",
         });
 
         if (res.success && res.location) {
           toast.success("Lokasi baru berhasil ditambahkan.");
-          setLocations((prev) => [res.location as LocationRecord, ...prev]);
+          setData((prev) => [res.location as LocationRecord, ...prev]);
           setIsFormOpen(false);
         } else {
           toast.error(res.error || "Gagal menambahkan lokasi.");
@@ -189,14 +349,14 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
       if (res.success) {
         if (res.message) {
           toast.info(res.message);
-          setLocations((prev) =>
+          setData((prev) =>
             prev.map((l) =>
               l.id === deleteConfirmLocation.id ? { ...l, is_active: false } : l
             )
           );
         } else {
           toast.success("Lokasi berhasil dihapus.");
-          setLocations((prev) => prev.filter((l) => l.id !== deleteConfirmLocation.id));
+          setData((prev) => prev.filter((l) => l.id !== deleteConfirmLocation.id));
         }
         setDeleteConfirmLocation(null);
       } else {
@@ -211,7 +371,7 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
 
   return (
     <div className="space-y-4">
-      {/* Action & Filter Toolbar */}
+      {/* TanStack Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-card p-4 rounded-2xl border border-border">
         <div className="flex flex-wrap items-center gap-2.5 flex-1">
           {/* Search Box */}
@@ -220,25 +380,26 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
             <Input
               type="text"
               placeholder="Cari gedung, fakultas, ruang..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
               className="pl-9 h-9 text-xs rounded-xl"
             />
           </div>
 
-          {/* Campus Filter */}
-          <select
-            value={selectedCampus}
-            onChange={(e) => setSelectedCampus(e.target.value)}
-            className="h-9 px-3 text-xs rounded-xl border border-input bg-background text-foreground font-medium outline-hidden"
-          >
-            <option value="all">Semua Kampus</option>
-            {uniqueCampuses.map((camp) => (
-              <option key={camp} value={camp}>
-                {camp}
-              </option>
-            ))}
-          </select>
+          {/* Campus Filter using shadcn Select */}
+          <Select value={selectedCampus} onValueChange={(val) => setSelectedCampus(val || "all")}>
+            <SelectTrigger className="w-[180px] h-9 text-xs rounded-xl">
+              <SelectValue placeholder="Pilih Kampus" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Kampus</SelectItem>
+              {uniqueCampuses.map((camp) => (
+                <SelectItem key={camp} value={camp}>
+                  {camp}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Add Location Button */}
@@ -252,88 +413,90 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
         </Button>
       </div>
 
-      {/* Locations Table */}
+      {/* TanStack Table Container */}
       <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
         <Table>
           <TableHeader className="bg-muted/40">
-            <TableRow>
-              <TableHead className="w-[180px] text-xs font-bold text-muted-foreground">KAMPUS</TableHead>
-              <TableHead className="text-xs font-bold text-muted-foreground">GEDUNG / FAKULTAS</TableHead>
-              <TableHead className="text-xs font-bold text-muted-foreground">LANTAI</TableHead>
-              <TableHead className="text-xs font-bold text-muted-foreground">RUANG / AREA SPESIFIK</TableHead>
-              <TableHead className="w-[100px] text-center text-xs font-bold text-muted-foreground">STATUS</TableHead>
-              <TableHead className="w-[110px] text-right text-xs font-bold text-muted-foreground">AKSI</TableHead>
-            </TableRow>
+            {table.getHeaderGroups().map((headerGroup) => (
+              <TableRow key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id} className="text-xs font-bold text-muted-foreground">
+                    {header.isPlaceholder ? null : <FlexRender header={header} />}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
           </TableHeader>
           <TableBody>
-            {filteredLocations.length === 0 ? (
+            {table.getRowModel().rows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-xs text-muted-foreground">
+                <TableCell colSpan={columns.length} className="h-32 text-center text-xs text-muted-foreground">
                   Tidak ada data lokasi yang sesuai dengan pencarian.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredLocations.map((loc) => (
-                <TableRow key={loc.id} className="hover:bg-muted/30">
-                  <TableCell className="text-xs font-semibold">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted text-foreground">
-                      <MapPin className="size-3 text-primary" />
-                      {loc.campus_name}
-                    </span>
-                  </TableCell>
-                  <TableCell className="text-xs font-bold text-foreground">
-                    {loc.building_name}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {loc.floor || "-"}
-                  </TableCell>
-                  <TableCell className="text-xs text-foreground font-medium">
-                    {loc.room_or_area}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {loc.is_active ? (
-                      <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] gap-1">
-                        <CheckCircle2 className="size-3" />
-                        <span>Aktif</span>
-                      </Badge>
-                    ) : (
-                      <Badge variant="secondary" className="text-muted-foreground text-[10px] gap-1">
-                        <XCircle className="size-3" />
-                        <span>Nonaktif</span>
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => openEditModal(loc)}
-                        className="size-7 rounded-lg text-muted-foreground hover:text-foreground"
-                      >
-                        <Pencil className="size-3.5" />
-                        <span className="sr-only">Edit</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setDeleteConfirmLocation(loc)}
-                        className="size-7 rounded-lg text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="size-3.5" />
-                        <span className="sr-only">Hapus</span>
-                      </Button>
-                    </div>
-                  </TableCell>
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id} className="hover:bg-muted/30">
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      <FlexRender cell={cell} />
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
 
-        <div className="p-3 border-t border-border bg-muted/20 text-xs text-muted-foreground flex items-center justify-between">
-          <span>Menampilkan <strong>{filteredLocations.length}</strong> dari <strong>{locations.length}</strong> lokasi terdaftar</span>
-          <span>SAFA UNESA Master Directory</span>
+        {/* TanStack Pagination Controls */}
+        <div className="p-3 border-t border-border bg-muted/20 text-xs text-muted-foreground flex flex-col sm:flex-row items-center justify-between gap-3">
+          <span>
+            Menampilkan <strong>{table.getRowModel().rows.length}</strong> dari <strong>{filteredData.length}</strong> lokasi terfilter (Total: {data.length})
+          </span>
+
+          <div className="flex items-center gap-2">
+            <span className="text-[11px]">
+              Hal {table.state.pagination.pageIndex + 1} dari {Math.max(1, table.getPageCount())}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-lg"
+                onClick={() => table.setPageIndex(0)}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <ChevronsLeft className="size-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-lg"
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+              >
+                <ChevronLeft className="size-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-lg"
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+              >
+                <ChevronRight className="size-3.5" />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="size-7 rounded-lg"
+                onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                disabled={!table.getCanNextPage()}
+              >
+                <ChevronsRight className="size-3.5" />
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -351,18 +514,19 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-3.5 py-2">
-            {/* Kampus Selection */}
+            {/* Kampus Selection using shadcn Select */}
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Kampus</Label>
-              <select
-                value={campusName}
-                onChange={(e) => setCampusName(e.target.value)}
-                className="w-full h-9 px-3 text-xs rounded-xl border border-input bg-background text-foreground font-medium outline-hidden"
-              >
-                <option value="Kampus Ketintang">Kampus Ketintang</option>
-                <option value="Kampus Lidah Wetan">Kampus Lidah Wetan</option>
-                <option value="other">+ Tambah Kampus Baru / Lainnya</option>
-              </select>
+              <Select value={campusName} onValueChange={(val) => val && setCampusName(val)}>
+                <SelectTrigger className="w-full h-9 text-xs rounded-xl">
+                  <SelectValue placeholder="Pilih Kampus" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Kampus Ketintang">Kampus Ketintang</SelectItem>
+                  <SelectItem value="Kampus Lidah Wetan">Kampus Lidah Wetan</SelectItem>
+                  <SelectItem value="other">+ Tambah Kampus Baru / Lainnya</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {campusName === "other" && (
@@ -392,7 +556,7 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
               />
             </div>
 
-            {/* Lantai & Ruang Grid */}
+            {/* Lantai & Status */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Lantai</Label>
@@ -407,14 +571,15 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
 
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Status Operasional</Label>
-                <select
-                  value={isActive ? "active" : "inactive"}
-                  onChange={(e) => setIsActive(e.target.value === "active")}
-                  className="w-full h-9 px-3 text-xs rounded-xl border border-input bg-background text-foreground font-medium outline-hidden"
-                >
-                  <option value="active">Aktif</option>
-                  <option value="inactive">Nonaktif</option>
-                </select>
+                <Select value={isActive} onValueChange={(val) => val && setIsActive(val)}>
+                  <SelectTrigger className="w-full h-9 text-xs rounded-xl">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Aktif</SelectItem>
+                    <SelectItem value="inactive">Nonaktif</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -517,4 +682,3 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
     </div>
   );
 }
-
