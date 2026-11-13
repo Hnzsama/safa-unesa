@@ -9,6 +9,7 @@ import {
   Zap,
   Clock,
   ShieldCheck,
+  CheckCircle2,
   Camera,
   ArrowRight,
   HelpCircle,
@@ -105,7 +106,19 @@ export default async function Home() {
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5">
+            <Link
+              href="/resolved"
+              className={buttonVariants({
+                variant: "outline",
+                size: "sm",
+                className: "h-8 px-2.5 text-xs font-semibold gap-1.5 rounded-xl border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10",
+              })}
+            >
+              <CheckCircle2 className="size-3.5" />
+              <span className="hidden sm:inline">Laporan Selesai</span>
+              <span className="sm:hidden">Selesai</span>
+            </Link>
             <Link
               href="/login"
               className={buttonVariants({
@@ -344,6 +357,9 @@ export default async function Home() {
             </div>
 
             <div className="flex items-center gap-3 text-[11px]">
+              <Link href="/resolved" className="hover:underline text-emerald-600 dark:text-emerald-400 font-semibold">
+                Laporan Selesai
+              </Link>
               <Link href="/docs/user" className="hover:underline text-muted-foreground hover:text-foreground">
                 Panduan SOP
               </Link>

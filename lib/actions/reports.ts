@@ -367,3 +367,90 @@ export async function getReportDetailWithLogs(reportId: string) {
     return { success: false, error: "Terjadi kesalahan saat memuat detail laporan." };
   }
 }
+
+export interface ResolvedReportItem {
+  id: string;
+  title: string;
+  description: string;
+  current_status: string;
+  created_at: string;
+  updated_at: string;
+  location?: {
+    campus_name: string;
+    building_name: string;
+    floor: string | null;
+    room_or_area: string;
+  } | null;
+  category?: {
+    name: string;
+  } | null;
+  reporter?: {
+    name: string;
+    identity_number: string | null;
+  } | null;
+  report_images: {
+    id?: string;
+    storage_path: string;
+    mime_type?: string;
+  }[];
+}
+
+export async function getResolvedReports(options?: {
+  limit?: number;
+  campus?: string;
+}) {
+  try {
+    const supabase = createAdminClient();
+    const limit = options?.limit ?? 24;
+
+    let query = supabase
+      .from("reports")
+      .select(`
+        id,
+        title,
+        description,
+        current_status,
+        created_at,
+        updated_at,
+        location:locations(campus_name, building_name, floor, room_or_area),
+        category:facility_categories(name),
+        reporter:users(name, identity_number),
+        report_images(id, storage_path, mime_type)
+      `)
+      .eq("current_status", "resolved")
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+
+    if (options?.campus && options.campus !== "all") {
+      query = query.eq("location.campus_name", options.campus);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error("Get resolved reports query error:", error);
+      return { success: false, reports: [] as ResolvedReportItem[], error: error.message };
+    }
+
+    const reports: ResolvedReportItem[] = (data || []).map((row) => {
+      const raw = row as Record<string, unknown>;
+      return {
+        id: raw.id as string,
+        title: raw.title as string,
+        description: raw.description as string,
+        current_status: raw.current_status as string,
+        created_at: raw.created_at as string,
+        updated_at: raw.updated_at as string,
+        location: Array.isArray(raw.location) ? raw.location[0] : raw.location,
+        category: Array.isArray(raw.category) ? raw.category[0] : raw.category,
+        reporter: Array.isArray(raw.reporter) ? raw.reporter[0] : raw.reporter,
+        report_images: (raw.report_images || []) as { id?: string; storage_path: string; mime_type?: string }[],
+      };
+    });
+
+    return { success: true, reports };
+  } catch (err: unknown) {
+    console.error("Failed to fetch resolved reports:", err);
+    return { success: false, reports: [] as ResolvedReportItem[], error: "Gagal mengambil data laporan selesai" };
+  }
+}
