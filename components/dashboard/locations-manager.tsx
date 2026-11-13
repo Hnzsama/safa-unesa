@@ -517,3 +517,4 @@ export function LocationsManager({ initialLocations }: LocationsManagerProps) {
     </div>
   );
 }
+

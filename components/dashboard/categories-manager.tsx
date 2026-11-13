@@ -408,3 +408,4 @@ export function CategoriesManager({ initialCategories }: CategoriesManagerProps)
     </div>
   );
 }
+
