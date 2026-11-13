@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { Layers } from "lucide-react";
@@ -8,8 +9,14 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getMasterCategoriesList } from "@/lib/actions/dashboard";
 import { CategoriesManager } from "@/components/dashboard/categories-manager";
+import { TableContentSkeleton } from "@/components/dashboard/table-skeleton";
 
 export const instant = false;
+
+async function CategoriesTableData() {
+  const categories = await getMasterCategoriesList();
+  return <CategoriesManager initialCategories={categories} />;
+}
 
 export default async function CategoriesMasterPage() {
   const session = await getServerSession(authOptions);
@@ -17,8 +24,6 @@ export default async function CategoriesMasterPage() {
   if (!session?.user) {
     redirect("/login?callbackUrl=/dashboard/categories");
   }
-
-  const categories = await getMasterCategoriesList();
 
   return (
     <SidebarProvider
@@ -36,7 +41,7 @@ export default async function CategoriesMasterPage() {
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
               
-              {/* Header Card */}
+              {/* Header Card Tetap Diam */}
               <div className="p-5 sm:p-6 rounded-2xl bg-card border border-border shadow-xs space-y-1">
                 <div className="flex items-center gap-2">
                   <div className="p-2 rounded-xl bg-primary/10 text-primary">
@@ -51,8 +56,10 @@ export default async function CategoriesMasterPage() {
                 </div>
               </div>
 
-              {/* Interactive Categories CRUD Manager */}
-              <CategoriesManager initialCategories={categories} />
+              {/* Skeleton Khusus Konten Tabel Saja */}
+              <Suspense fallback={<TableContentSkeleton rowCount={6} />}>
+                <CategoriesTableData />
+              </Suspense>
 
             </div>
           </div>

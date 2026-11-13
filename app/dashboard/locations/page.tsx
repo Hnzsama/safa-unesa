@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { Building2 } from "lucide-react";
@@ -8,8 +9,14 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getMasterLocationsList } from "@/lib/actions/dashboard";
 import { LocationsManager } from "@/components/dashboard/locations-manager";
+import { TableContentSkeleton } from "@/components/dashboard/table-skeleton";
 
 export const instant = false;
+
+async function LocationsTableData() {
+  const locations = await getMasterLocationsList();
+  return <LocationsManager initialLocations={locations} />;
+}
 
 export default async function LocationsMasterPage() {
   const session = await getServerSession(authOptions);
@@ -17,8 +24,6 @@ export default async function LocationsMasterPage() {
   if (!session?.user) {
     redirect("/login?callbackUrl=/dashboard/locations");
   }
-
-  const locations = await getMasterLocationsList();
 
   return (
     <SidebarProvider
@@ -36,7 +41,7 @@ export default async function LocationsMasterPage() {
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
               
-              {/* Header Card */}
+              {/* Header Card Tetap Diam & Langsung Ter-render */}
               <div className="p-5 sm:p-6 rounded-2xl bg-card border border-border shadow-xs space-y-1">
                 <div className="flex items-center gap-2">
                   <div className="p-2 rounded-xl bg-primary/10 text-primary">
@@ -51,8 +56,10 @@ export default async function LocationsMasterPage() {
                 </div>
               </div>
 
-              {/* Interactive Locations CRUD Manager */}
-              <LocationsManager initialLocations={locations} />
+              {/* Skeleton Khusus Konten Tabel Saja (Sidebar & Navbar Tetap Utuh) */}
+              <Suspense fallback={<TableContentSkeleton rowCount={8} />}>
+                <LocationsTableData />
+              </Suspense>
 
             </div>
           </div>
