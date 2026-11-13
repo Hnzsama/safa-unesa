@@ -1,21 +1,13 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { Layers, CheckCircle2, Tag } from "lucide-react";
+import { Layers } from "lucide-react";
 
 import { authOptions } from "@/lib/auth";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { getMasterCategoriesList } from "@/lib/actions/dashboard";
-import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { CategoriesManager } from "@/components/dashboard/categories-manager";
 
 export const instant = false;
 
@@ -59,43 +51,8 @@ export default async function CategoriesMasterPage() {
                 </div>
               </div>
 
-              {/* Table of Categories */}
-              <div className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
-                <Table>
-                  <TableHeader className="bg-muted/40">
-                    <TableRow>
-                      <TableHead className="w-[240px] text-xs font-bold text-muted-foreground">NAMA KATEGORI</TableHead>
-                      <TableHead className="text-xs font-bold text-muted-foreground">DESKRIPSI &amp; CAKUPAN KERUSAKAN</TableHead>
-                      <TableHead className="w-[120px] text-right text-xs font-bold text-muted-foreground">STATUS</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {categories.map((cat) => (
-                      <TableRow key={cat.id} className="hover:bg-muted/30">
-                        <TableCell className="text-xs font-bold text-foreground">
-                          <div className="flex items-center gap-2">
-                            <Tag className="size-3.5 text-primary shrink-0" />
-                            <span>{cat.name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground leading-relaxed">
-                          {cat.description || "Tidak ada deskripsi rinci."}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Badge className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[10px] gap-1">
-                            <CheckCircle2 className="size-3" />
-                            <span>Aktif</span>
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-                <div className="p-3 border-t border-border bg-muted/20 text-xs text-muted-foreground flex justify-between">
-                  <span>Total <strong>{categories.length}</strong> kategori sarpras aktif</span>
-                  <span>SAFA UNESA Standards</span>
-                </div>
-              </div>
+              {/* Interactive Categories CRUD Manager */}
+              <CategoriesManager initialCategories={categories} />
 
             </div>
           </div>

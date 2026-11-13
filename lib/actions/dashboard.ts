@@ -328,6 +328,145 @@ export async function getMasterLocationsList() {
   return data;
 }
 
+export async function createLocationAction(data: {
+  campus_name: string;
+  building_name: string;
+  floor?: string;
+  room_or_area: string;
+  is_active?: boolean;
+}) {
+  try {
+    const supabase = createAdminClient();
+    const { campus_name, building_name, floor, room_or_area, is_active = true } = data;
+
+    if (!campus_name?.trim() || !building_name?.trim() || !room_or_area?.trim()) {
+      return { success: false, error: "Kampus, Gedung/Fakultas, dan Ruangan wajib diisi." };
+    }
+
+    const { data: newLoc, error } = await supabase
+      .from("locations")
+      .insert({
+        campus_name: campus_name.trim(),
+        building_name: building_name.trim(),
+        floor: floor?.trim() || null,
+        room_or_area: room_or_area.trim(),
+        is_active,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error inserting location:", error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/dashboard/locations");
+    revalidatePath("/reports/new");
+    revalidatePath("/");
+
+    return { success: true, location: newLoc };
+  } catch (err: unknown) {
+    console.error("createLocationAction error:", err);
+    return { success: false, error: "Gagal membuat lokasi baru." };
+  }
+}
+
+export async function updateLocationAction(
+  id: string,
+  data: {
+    campus_name: string;
+    building_name: string;
+    floor?: string;
+    room_or_area: string;
+    is_active?: boolean;
+  }
+) {
+  try {
+    const supabase = createAdminClient();
+    const { campus_name, building_name, floor, room_or_area, is_active } = data;
+
+    if (!id) {
+      return { success: false, error: "ID Lokasi tidak valid." };
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (campus_name !== undefined) updatePayload.campus_name = campus_name.trim();
+    if (building_name !== undefined) updatePayload.building_name = building_name.trim();
+    if (floor !== undefined) updatePayload.floor = floor?.trim() || null;
+    if (room_or_area !== undefined) updatePayload.room_or_area = room_or_area.trim();
+    if (is_active !== undefined) updatePayload.is_active = is_active;
+
+    const { data: updated, error } = await supabase
+      .from("locations")
+      .update(updatePayload)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating location:", error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/dashboard/locations");
+    revalidatePath("/reports/new");
+    revalidatePath("/");
+
+    return { success: true, location: updated };
+  } catch (err: unknown) {
+    console.error("updateLocationAction error:", err);
+    return { success: false, error: "Gagal memperbarui data lokasi." };
+  }
+}
+
+export async function deleteLocationAction(id: string) {
+  try {
+    const supabase = createAdminClient();
+    if (!id) return { success: false, error: "ID Lokasi tidak valid." };
+
+    // Cek apakah ada laporan yang memakai lokasi ini
+    const { count, error: countErr } = await supabase
+      .from("reports")
+      .select("id", { count: "exact", head: true })
+      .eq("location_id", id);
+
+    if (countErr) {
+      console.error("Error checking report usage:", countErr);
+    }
+
+    if (count && count > 0) {
+      // Jika masih ada laporan terhubung, nonaktifkan saja (soft-deactivate)
+      await supabase
+        .from("locations")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      revalidatePath("/dashboard/locations");
+      return {
+        success: true,
+        message: `Lokasi dinonaktifkan (karena digunakan oleh ${count} laporan fasilitas).`,
+      };
+    }
+
+    const { error } = await supabase.from("locations").delete().eq("id", id);
+    if (error) {
+      console.error("Error deleting location:", error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/dashboard/locations");
+    revalidatePath("/reports/new");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("deleteLocationAction error:", err);
+    return { success: false, error: "Gagal menghapus lokasi." };
+  }
+}
+
 export async function getMasterCategoriesList() {
   const supabase = createAdminClient();
   const { data, error } = await supabase
@@ -340,6 +479,134 @@ export async function getMasterCategoriesList() {
     return [];
   }
   return data;
+}
+
+export async function createCategoryAction(data: {
+  name: string;
+  description?: string;
+  is_active?: boolean;
+}) {
+  try {
+    const supabase = createAdminClient();
+    const { name, description, is_active = true } = data;
+
+    if (!name?.trim()) {
+      return { success: false, error: "Nama kategori wajib diisi." };
+    }
+
+    const { data: newCat, error } = await supabase
+      .from("facility_categories")
+      .insert({
+        name: name.trim(),
+        description: description?.trim() || null,
+        is_active,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error inserting category:", error);
+      return { success: false, error: error.message.includes("unique") ? "Nama kategori sudah ada." : error.message };
+    }
+
+    revalidatePath("/dashboard/categories");
+    revalidatePath("/reports/new");
+    revalidatePath("/");
+
+    return { success: true, category: newCat };
+  } catch (err: unknown) {
+    console.error("createCategoryAction error:", err);
+    return { success: false, error: "Gagal menambahkan kategori baru." };
+  }
+}
+
+export async function updateCategoryAction(
+  id: string,
+  data: {
+    name: string;
+    description?: string;
+    is_active?: boolean;
+  }
+) {
+  try {
+    const supabase = createAdminClient();
+    const { name, description, is_active } = data;
+
+    if (!id) return { success: false, error: "ID Kategori tidak valid." };
+
+    const updatePayload: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (name !== undefined) updatePayload.name = name.trim();
+    if (description !== undefined) updatePayload.description = description?.trim() || null;
+    if (is_active !== undefined) updatePayload.is_active = is_active;
+
+    const { data: updated, error } = await supabase
+      .from("facility_categories")
+      .update(updatePayload)
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error updating category:", error);
+      return { success: false, error: error.message.includes("unique") ? "Nama kategori sudah ada." : error.message };
+    }
+
+    revalidatePath("/dashboard/categories");
+    revalidatePath("/reports/new");
+    revalidatePath("/");
+
+    return { success: true, category: updated };
+  } catch (err: unknown) {
+    console.error("updateCategoryAction error:", err);
+    return { success: false, error: "Gagal memperbarui kategori." };
+  }
+}
+
+export async function deleteCategoryAction(id: string) {
+  try {
+    const supabase = createAdminClient();
+    if (!id) return { success: false, error: "ID Kategori tidak valid." };
+
+    // Cek apakah ada laporan yang memakai kategori ini
+    const { count, error: countErr } = await supabase
+      .from("reports")
+      .select("id", { count: "exact", head: true })
+      .eq("category_id", id);
+
+    if (countErr) {
+      console.error("Error checking report usage:", countErr);
+    }
+
+    if (count && count > 0) {
+      await supabase
+        .from("facility_categories")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      revalidatePath("/dashboard/categories");
+      return {
+        success: true,
+        message: `Kategori dinonaktifkan (karena digunakan oleh ${count} laporan fasilitas).`,
+      };
+    }
+
+    const { error } = await supabase.from("facility_categories").delete().eq("id", id);
+    if (error) {
+      console.error("Error deleting category:", error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath("/dashboard/categories");
+    revalidatePath("/reports/new");
+    revalidatePath("/");
+
+    return { success: true };
+  } catch (err: unknown) {
+    console.error("deleteCategoryAction error:", err);
+    return { success: false, error: "Gagal menghapus kategori." };
+  }
 }
 
 export async function getAuditTrailLogsList(limit = 20) {
