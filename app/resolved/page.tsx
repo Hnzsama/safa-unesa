@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import {
   ArrowLeft,
   Calendar,
@@ -114,12 +113,12 @@ export default async function ResolvedReportsPage() {
                     {/* Image Preview / Banner */}
                     <div className="relative aspect-[16/10] bg-muted overflow-hidden border-b border-border/50">
                       {displayImage ? (
-                        <Image
+                        /* eslint-disable-next-line @next/next/no-img-element */
+                        <img
                           src={displayImage.storage_path}
                           alt={report.title}
-                          fill
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                          className="object-cover transition-transform duration-300 group-hover:scale-105"
+                          className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                          loading="lazy"
                         />
                       ) : (
                         <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/50 gap-2">
